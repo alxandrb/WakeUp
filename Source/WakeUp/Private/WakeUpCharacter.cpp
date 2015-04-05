@@ -10,7 +10,8 @@ AWakeUpCharacter::AWakeUpCharacter(const class FPostConstructInitializePropertie
 	: Super(PCIP)
 {
 	// Set a base power level for the character
-	PowerLevel = 0.f;
+	PowerLevel = 0;
+	bIsJumpPowerActivated = false;
 
 	// Create our power collection volume
 	CollectionSphere = PCIP.CreateDefaultSubobject<USphereComponent>(this, TEXT("CollectionSphere"));
@@ -37,7 +38,7 @@ AWakeUpCharacter::AWakeUpCharacter(const class FPostConstructInitializePropertie
 	SideViewCameraComponent = PCIP.CreateDefaultSubobject<UCameraComponent>(this, TEXT("SideViewCamera"));
 	SideViewCameraComponent->AttachTo(CameraBoom, USpringArmComponent::SocketName);
 	SideViewCameraComponent->bUsePawnControlRotation = false; // We don't want the controller rotating the camera
-
+	
 	// Configure character movement
 	CharacterMovement->bOrientRotationToMovement = true; // Face in the direction we are moving..
 	CharacterMovement->RotationRate = FRotator(0.0f, 720.0f, 0.0f); // ...at this rotation rate
@@ -45,8 +46,11 @@ AWakeUpCharacter::AWakeUpCharacter(const class FPostConstructInitializePropertie
 	CharacterMovement->AirControl = 0.80f;
 	CharacterMovement->JumpZVelocity = 1000.f;
 	CharacterMovement->GroundFriction = 3.f;
-	CharacterMovement->MaxWalkSpeed = 600.f;
+	CharacterMovement->MaxWalkSpeed = 450.f;
 	CharacterMovement->MaxFlySpeed = 600.f;
+
+	CharacterMovement->bConstrainToPlane = true;
+	CharacterMovement->SetPlaneConstraintNormal(FVector(-1.0f, 0.0f, 0.0f));
 
 	// Note: The skeletal mesh and anim blueprint references on the Mesh component (inherited from Character) 
 	// are set in the derived blueprint asset named MyCharacter (to avoid direct content references in C++)
@@ -58,14 +62,31 @@ AWakeUpCharacter::AWakeUpCharacter(const class FPostConstructInitializePropertie
 void AWakeUpCharacter::SetupPlayerInputComponent(class UInputComponent* InputComponent)
 {
 	// set up gameplay key bindings
-	InputComponent->BindAction("Jump", IE_Pressed, this, &ACharacter::Jump);
-	InputComponent->BindAction("Jump", IE_Released, this, &ACharacter::StopJumping);
-	InputComponent->BindAction("CollectPowerPickup", IE_Pressed, this, &AWakeUpCharacter::CollectPowers);
+	InputComponent->BindAction("Jump", IE_Pressed, this, &AWakeUpCharacter::Jump);
+	InputComponent->BindAction("Jump", IE_Released, this, &AWakeUpCharacter::StopJumping);
+
+	InputComponent->BindAction("Action", IE_Released, this, &AWakeUpCharacter::Action);
 
 	InputComponent->BindAxis("MoveRight", this, &AWakeUpCharacter::MoveRight);
 
 	InputComponent->BindTouch(IE_Pressed, this, &AWakeUpCharacter::TouchStarted);
 	InputComponent->BindTouch(IE_Released, this, &AWakeUpCharacter::TouchStopped);
+}
+
+void AWakeUpCharacter::Jump()
+{
+	if (bIsJumpPowerActivated == true)
+	{
+		ACharacter::Jump();
+	}
+}
+
+void AWakeUpCharacter::StopJumping()
+{
+	if (bIsJumpPowerActivated == true)
+	{
+		ACharacter::StopJumping();
+	}
 }
 
 void AWakeUpCharacter::MoveRight(float Value)
@@ -77,12 +98,18 @@ void AWakeUpCharacter::MoveRight(float Value)
 void AWakeUpCharacter::TouchStarted(const ETouchIndex::Type FingerIndex, const FVector Location)
 {
 	// jump on any touch
-	Jump();
+	if (bIsJumpPowerActivated == true)
+	{
+		Jump();
+	}	
 }
 
 void AWakeUpCharacter::TouchStopped(const ETouchIndex::Type FingerIndex, const FVector Location)
 {
-	StopJumping();
+	if (bIsJumpPowerActivated == true)
+	{
+		StopJumping();
+	}
 }
 
 void AWakeUpCharacter::CollectPowers()
@@ -123,6 +150,14 @@ void AWakeUpCharacter::CollectPowers()
 			PowerUp(PowerPickupLevel);
 		}
 	//}
+}
+
+void AWakeUpCharacter::ActivatePower()
+{
+	if (PowerLevel >= 1000)
+	{
+		bIsJumpPowerActivated = true;
+	}
 }
 
 void AWakeUpCharacter::Tick(float DeltaSeconds)
